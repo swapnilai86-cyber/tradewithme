@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: swing_trade_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: .
+    stdin_open: true
+    tty: true
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/swing_trade_db
+      - TZ=Asia/Kolkata
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app/backend
+      - ./config:/app/config
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:

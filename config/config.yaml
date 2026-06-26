@@ -1,0 +1,81 @@
+broker:
+  provider: "mstock"
+  api_key: "${MSTOCK_API_KEY}"
+  client_id: "${MSTOCK_CLIENT_ID}"
+  password: "${MSTOCK_PASSWORD}"
+  totp_secret: "${MSTOCK_TOTP_SECRET}"
+
+strategy:
+  # Signal thresholds — Stage-A Early Radar
+  early_radar_compression_pct: 3.5        # rolling_range_pct <= 3.5%
+  early_radar_near_resistance_pct: 1.5    # distance_to_high_pct <= 1.5%
+  early_radar_rsi_min: 50                 # RSI >= 50
+  early_radar_rsi_max: 62                 # RSI <= 62
+  early_radar_vol_ratio_min: 0.8          # vol_ratio >= 0.8
+
+  # Signal thresholds — Stage-B Entry Trigger
+  entry_rsi_min: 52                       # RSI > 52
+  entry_rsi_max: 72                       # RSI < 72
+  entry_vol_ratio_min: 1.5               # vol_ratio >= 1.5x
+  no_chase_pct: 1.5                       # distance_from_breakout_pct <= 1.5%
+  lookback_breakout: 20                   # bars to look back for breakout level
+
+  # Signal thresholds — Re-entry (Retest)
+  retest_tolerance_pct: 0.5              # 0.5% below breakout allowed on low
+  retest_rsi_min: 50                     # RSI > 50 on retest
+  retest_vol_ratio_min: 1.1             # vol_ratio >= 1.1x
+
+  # Exit parameters
+  target_pct: 5.0                         # 5% target
+  stop_loss_pct: 3.0                      # 3% SL
+  max_hold_trading_sessions: 20           # 20 sessions
+  max_hold_minutes: 7200                  # 20 * 360 mins = 7200 (480 bars @ 15m)
+  bars_per_session: 24                    # 360 mins / 15 = 24 bars
+
+  # Optional exit features
+  enable_breakeven_stop: true
+  breakeven_trigger_pct: 2.5             # move SL to entry when +2.5%
+  enable_trail_stop: true
+  trail_trigger_pct: 4.0                 # activate trail at +4%
+  trail_distance_pct: 1.5               # trail 1.5% below current LTP
+
+  # Entry mode
+  entry_mode: "single_shot"              # single_shot | pilot_add
+  pilot_add_wait_bars: 10                # bars to wait for retest in pilot_add mode
+
+  # Scanner
+  scan_interval_seconds: 120             # scan every 2 minutes
+  timeframe: "15minute"                  # 15m candles
+  daily_cache_refresh_time: "09:20"      # IST time to refresh daily EMA cache
+  breakout_tracking_window: 50           # bars to track breakout for re-entry check
+
+risk:
+  risk_per_trade_pct: 0.75               # % of equity risked per trade
+  max_concurrent_positions: 5            # max open trades at once
+  max_positions_per_sector: 2            # max trades in same sector
+  portfolio_risk_limit_pct: 10.0        # max total open risk as % of equity
+  kill_switch_daily_loss_pct: 5.0        # auto kill at -5% daily loss
+  loss_streak_threshold: 3               # consecutive losses to trigger guard
+  size_reduction_pct: 50                 # reduce qty by 50% under drawdown guard
+  size_reduction_trade_count: 5          # apply guard for next N trades
+  live_mode: false                        # PAPER MODE — set true only after validation
+
+paper_trading:
+  slippage_model: "random_pct"           # fixed_pct | random_pct | realistic_spread
+  entry_slippage_max_pct: 0.5            # max entry slippage
+  exit_slippage_max_pct: 0.3            # max exit slippage
+  brokerage_pct: 0.03                    # 0.03% per side
+  initial_capital: 100000.0              # paper trading starting capital (INR)
+
+alerts:
+  discord_early_radar: "${DISCORD_WEBHOOK_EARLY_RADAR}"
+  discord_entry_trigger: "${DISCORD_WEBHOOK_ENTRY_TRIGGER}"
+  discord_exits: "${DISCORD_WEBHOOK_EXITS}"
+  discord_errors: "${DISCORD_WEBHOOK_ERRORS}"
+
+reporting:
+  daily_report_time: "16:00"            # IST — generate report after market close
+  reports_dir: "reports"
+
+database:
+  url: "${DATABASE_URL}"

@@ -1,0 +1,17 @@
+roles:
+  admin:
+    permissions:
+      - read_all
+      - write_all
+      - manage_users
+      - edit_trades
+      - update_config
+  trader:
+    permissions:
+      - read_own
+      - write_own
+      - execute_paper_trades
+  viewer:
+    permissions:
+      - read_shared
+      - read_dashboard
