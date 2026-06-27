@@ -104,7 +104,15 @@ function Dashboard() {
           <tbody>
             {alerts.length > 0 ? alerts.map(alert => (
               <tr key={alert.id}>
-                <td><strong>{alert.symbol}</strong></td>
+                <td>
+                  <strong 
+                    onClick={() => window.open(`/chart/${alert.symbol}`, `Chart_${alert.symbol}`, 'width=1200,height=800,resizable=yes')}
+                    style={{ cursor: 'pointer', color: 'var(--accent-blue)', textDecoration: 'underline' }}
+                    title="View Chart"
+                  >
+                    {alert.symbol}
+                  </strong>
+                </td>
                 <td>
                   <span className={`badge badge-${getBadgeColor(alert.alert_type)}`}>
                     {alert.alert_type.replace('_', ' ')}

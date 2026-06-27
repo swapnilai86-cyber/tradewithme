@@ -145,7 +145,15 @@ function Watchlist() {
             {watchlist.map((item, index) => (
               <tr key={item.id}>
                 <td>{index + 1}</td>
-                <td><strong>{item.symbol}</strong></td>
+                <td>
+                  <strong 
+                    onClick={() => window.open(`/chart/${item.symbol}`, `Chart_${item.symbol}`, 'width=1200,height=800,resizable=yes')}
+                    style={{ cursor: 'pointer', color: 'var(--accent-blue)', textDecoration: 'underline' }}
+                    title="View Chart"
+                  >
+                    {item.symbol}
+                  </strong>
+                </td>
                 <td>₹{item.current_price?.toFixed(2) || '0.00'}</td>
                 <td>{item.entry_price ? `₹${item.entry_price.toFixed(2)}` : '-'}</td>
                 <td>{item.exit_price ? `₹${item.exit_price.toFixed(2)}` : '-'}</td>

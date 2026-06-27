@@ -62,7 +62,15 @@ function Trades() {
               return (
                 <tr key={trade.id}>
                   <td>{index + 1}</td>
-                  <td><strong>{trade.symbol}</strong></td>
+                  <td>
+                    <strong 
+                      onClick={() => window.open(`/chart/${trade.symbol}`, `Chart_${trade.symbol}`, 'width=1200,height=800,resizable=yes')}
+                      style={{ cursor: 'pointer', color: 'var(--accent-blue)', textDecoration: 'underline' }}
+                      title="View Chart"
+                    >
+                      {trade.symbol}
+                    </strong>
+                  </td>
                   <td>{new Date(trade.entry_time).toLocaleString()}</td>
                   <td>₹{trade.entry_price.toFixed(2)}</td>
                   <td>{trade.cmp ? `₹${trade.cmp.toFixed(2)}` : '—'}</td>
