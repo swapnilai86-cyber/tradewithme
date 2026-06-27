@@ -7,6 +7,7 @@ and feeds finalized 15m candles to the SignalScanner (Part N).
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime, timezone, timedelta, time as dt_time
 from typing import Dict, List, Optional
 import os
@@ -20,6 +21,8 @@ logger = get_logger(__name__)
 
 CACHE_DIR = "/app/data/historical"
 os.makedirs(CACHE_DIR, exist_ok=True)
+
+FILTER_CONFIG_FILE = "/app/config/cmp_filter.json"
 
 logger = get_logger(__name__)
 
@@ -63,6 +66,38 @@ class PollingScanner:
         self._daily_cache_date: Optional[str] = None
         self.offline_mode: bool = False
         self.scan_enabled: bool = True
+        self._offline_scan_done: bool = False
+
+        # CMP Filter
+        self.cmp_filter_mode: str = "none" # "none", "less_than", "greater_than", "between"
+        self.cmp_filter_min: float = 0.0
+        self.cmp_filter_max: float = 0.0
+        self._load_cmp_filter()
+
+    def _load_cmp_filter(self) -> None:
+        try:
+            if os.path.exists(FILTER_CONFIG_FILE):
+                with open(FILTER_CONFIG_FILE, "r") as f:
+                    data = json.load(f)
+                    self.cmp_filter_mode = data.get("mode", "none")
+                    self.cmp_filter_min = float(data.get("min_val", 0.0))
+                    self.cmp_filter_max = float(data.get("max_val", 0.0))
+        except Exception as e:
+            logger.error(f"Failed to load CMP filter config: {e}")
+
+    def save_cmp_filter(self, mode: str, min_val: float, max_val: float) -> None:
+        self.cmp_filter_mode = mode
+        self.cmp_filter_min = float(min_val)
+        self.cmp_filter_max = float(max_val)
+        try:
+            with open(FILTER_CONFIG_FILE, "w") as f:
+                json.dump({
+                    "mode": self.cmp_filter_mode,
+                    "min_val": self.cmp_filter_min,
+                    "max_val": self.cmp_filter_max
+                }, f)
+        except Exception as e:
+            logger.error(f"Failed to save CMP filter config: {e}")
 
     # ──────────────────────────────────────────────
     # LIFECYCLE
@@ -108,14 +143,15 @@ class PollingScanner:
 
                 # TEMPORARY BYPASS FOR TESTING: Run regardless of market hours
                 if self.offline_mode or (MARKET_OPEN_IST <= ist_time <= MARKET_CLOSE_IST):
-                    await self._refresh_daily_cache_if_needed(ist_now)
-                    await self._run_scan()
-                    
-                    if self.offline_mode:
-                        # In offline mode, run once and pause indefinitely or exit loop?
-                        # It will just repeatedly scan the local CSVs if we don't break. 
-                        # We'll let it poll every `scan_interval` so UI gets updates.
-                        pass
+                    if self.offline_mode and self._offline_scan_done:
+                        logger.debug("Offline scan already completed. Waiting for next trigger or market open.")
+                    else:
+                        await self._refresh_daily_cache_if_needed(ist_now)
+                        await self._run_scan()
+                        
+                        if self.offline_mode:
+                            self._offline_scan_done = True
+                            logger.info("Offline scan completed. Going into sleep mode until re-triggered.")
                 else:
                     logger.debug(
                         f"Market closed (IST {ist_time.strftime('%H:%M')}) — scanner idle"
@@ -204,7 +240,16 @@ class PollingScanner:
                     continue
 
                 # Track LTP from latest close for exit checks
-                ltp_map[sym] = float(df.iloc[-1]["close"])
+                cmp = float(df.iloc[-1]["close"])
+                ltp_map[sym] = cmp
+
+                # Apply CMP Filter
+                if self.cmp_filter_mode == "less_than" and cmp > self.cmp_filter_max:
+                    continue
+                elif self.cmp_filter_mode == "greater_than" and cmp < self.cmp_filter_min:
+                    continue
+                elif self.cmp_filter_mode == "between" and (cmp < self.cmp_filter_min or cmp > self.cmp_filter_max):
+                    continue
 
                 daily_df = self._daily_cache.get(sym)
 

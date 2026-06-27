@@ -9,13 +9,25 @@ function AdminPanel() {
   const [newUser, setNewUser] = useState({ username: '', email: '', password: '', role: 'viewer' });
   const [createStatus, setCreateStatus] = useState('');
   const [syncStatus, setSyncStatus] = useState('');
+  const [cmpFilter, setCmpFilter] = useState({ mode: 'none', min_val: 0, max_val: 0 });
+  const [filterStatus, setFilterStatus] = useState('');
   const { token, user } = useAuth();
 
   useEffect(() => {
     if (user?.role === 'admin') {
       fetchUsers();
+      fetchCmpFilter();
     }
   }, [user]);
+
+  const fetchCmpFilter = async () => {
+    try {
+      const res = await fetch('/api/admin/cmp-filter', { headers: { 'Authorization': `Bearer ${token}` } });
+      if (res.ok) setCmpFilter(await res.json());
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -112,20 +124,25 @@ function AdminPanel() {
     }
   };
 
-  const handleToggleScanner = async () => {
+  const handleApplyFilter = async () => {
+    setFilterStatus('Applying...');
     try {
-      const response = await fetch('/api/admin/toggle-scanner', {
+      const response = await fetch('/api/admin/cmp-filter', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(cmpFilter)
       });
       const data = await response.json();
       if (response.ok) {
-        setSyncStatus(`✅ ${data.message}`);
+        setFilterStatus(`✅ ${data.message}`);
       } else {
-        setSyncStatus(`❌ Error: ${data.detail}`);
+        setFilterStatus(`❌ Error: ${data.detail}`);
       }
     } catch (err) {
-      setSyncStatus(`❌ Network error: ${err.message}`);
+      setFilterStatus(`❌ Network error: ${err.message}`);
     }
   };
 
@@ -239,13 +256,68 @@ function AdminPanel() {
               <button onClick={handleToggleOffline} className="btn" style={{ background: 'transparent', border: '1px solid #3b82f6', color: '#3b82f6' }}>
                 Toggle Offline Mode
               </button>
-              <button onClick={handleToggleScanner} className="btn" style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444' }}>
-                Pause / Resume Scanner
-              </button>
             </div>
             {syncStatus && (
               <div style={{ marginTop: '1rem', padding: '1rem', borderRadius: '8px', background: '#222', fontSize: '0.9rem', maxWidth: '600px' }}>
                 {syncStatus}
+              </div>
+            )}
+          </div>
+
+          <div className="glass-panel" style={{ marginBottom: '2rem' }}>
+            <h2>Scanner Price Filter (CMP)</h2>
+            <p style={{ color: '#9ca3af', marginBottom: '1rem', fontSize: '0.9rem' }}>
+              Filter which stocks are evaluated by the scanner based on their Current Market Price.
+            </p>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.5rem', color: '#ccc' }}>Filter Mode</label>
+                <select 
+                  className="input-field" 
+                  style={{ marginBottom: 0, width: '200px' }}
+                  value={cmpFilter.mode} 
+                  onChange={e => setCmpFilter({...cmpFilter, mode: e.target.value})}
+                >
+                  <option value="none">None (Scan All)</option>
+                  <option value="less_than">Less Than or Equal (&lt;=)</option>
+                  <option value="greater_than">Greater Than or Equal (&gt;=)</option>
+                  <option value="between">Between</option>
+                </select>
+              </div>
+
+              {(cmpFilter.mode === 'greater_than' || cmpFilter.mode === 'between') && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.5rem', color: '#ccc' }}>Min Price</label>
+                  <input 
+                    type="number" 
+                    className="input-field" 
+                    style={{ marginBottom: 0, width: '120px' }}
+                    value={cmpFilter.min_val}
+                    onChange={e => setCmpFilter({...cmpFilter, min_val: parseFloat(e.target.value) || 0})}
+                  />
+                </div>
+              )}
+
+              {(cmpFilter.mode === 'less_than' || cmpFilter.mode === 'between') && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.5rem', color: '#ccc' }}>Max Price</label>
+                  <input 
+                    type="number" 
+                    className="input-field" 
+                    style={{ marginBottom: 0, width: '120px' }}
+                    value={cmpFilter.max_val}
+                    onChange={e => setCmpFilter({...cmpFilter, max_val: parseFloat(e.target.value) || 0})}
+                  />
+                </div>
+              )}
+
+              <button onClick={handleApplyFilter} className="btn btn-primary" style={{ height: '42px' }}>
+                Apply Filter
+              </button>
+            </div>
+            {filterStatus && (
+              <div style={{ marginTop: '1rem', padding: '1rem', borderRadius: '8px', background: '#222', fontSize: '0.9rem', maxWidth: '600px' }}>
+                {filterStatus}
               </div>
             )}
           </div>

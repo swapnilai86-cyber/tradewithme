@@ -4,7 +4,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.app.api import auth, watchlist, trades, dashboard, admin, logs, alerts
+from backend.app.api import auth, watchlist, trades, dashboard, admin, logs, alerts, charts
 from backend.engine.core import TradingEngineCore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from backend.engine.data_ingestion.yfinance_sync import sync_offline_data_from_yfinance
@@ -29,9 +29,16 @@ async def lifespan(app: FastAPI):
     # Start the engine in the background
     asyncio.create_task(trading_engine.start())
     
+    # Wrapper to sync then scan once
+    async def scheduled_sync_and_scan():
+        await sync_offline_data_from_yfinance()
+        if trading_engine and trading_engine.polling_scanner:
+            trading_engine.polling_scanner.offline_mode = True
+            trading_engine.polling_scanner._offline_scan_done = False
+            
     # Schedule the offline sync for 16:30 every day (Mon-Fri)
     scheduler.add_job(
-        sync_offline_data_from_yfinance,
+        scheduled_sync_and_scan,
         'cron',
         day_of_week='mon-fri',
         hour=16,
@@ -62,6 +69,7 @@ app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"]
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(logs.router, prefix="/api/logs", tags=["Logs"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
+app.include_router(charts.router, prefix="/api/charts", tags=["Charts"])
 
 
 @app.get("/")

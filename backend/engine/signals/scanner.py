@@ -7,11 +7,14 @@ from __future__ import annotations
 import pandas as pd
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
+import json
+import os
 from backend.logging_config import get_logger
 from backend.engine.indicators.engine import IndicatorEngine
 
 logger = get_logger(__name__)
 
+ALERT_STATE_FILE = "/app/config/scanner_alerts_state.json"
 
 class BreakoutTracker:
     """Tracks recent breakout events for re-entry evaluation (Part C)."""
@@ -91,6 +94,28 @@ class SignalScanner:
         
         # Repetitive alert throttling
         self.last_alert_targets: Dict[str, float] = {}
+        self.last_radar_prices: Dict[str, float] = {}
+        self._load_alert_state()
+
+    def _load_alert_state(self) -> None:
+        try:
+            if os.path.exists(ALERT_STATE_FILE):
+                with open(ALERT_STATE_FILE, "r") as f:
+                    data = json.load(f)
+                    self.last_radar_prices = data.get("last_radar_prices", {})
+                    self.last_alert_targets = data.get("last_alert_targets", {})
+        except Exception as e:
+            logger.error(f"Failed to load alert state: {e}")
+
+    def _save_alert_state(self) -> None:
+        try:
+            with open(ALERT_STATE_FILE, "w") as f:
+                json.dump({
+                    "last_radar_prices": self.last_radar_prices,
+                    "last_alert_targets": self.last_alert_targets
+                }, f)
+        except Exception as e:
+            logger.error(f"Failed to save alert state: {e}")
 
     async def process_new_candle(
         self,
@@ -207,13 +232,24 @@ class SignalScanner:
             return
 
         # All 6 passed
+        current_price = float(last.get("close", 0))
+        last_price = self.last_radar_prices.get(symbol)
+        if last_price is not None:
+            diff_pct = abs((current_price - last_price) / last_price) * 100
+            if diff_pct <= 3.0:
+                logger.debug(f"{symbol} EARLY_RADAR: Suppressing repetitive alert (price diff {diff_pct:.2f}% <= 3%)")
+                return
+
+        self.last_radar_prices[symbol] = current_price
+        self._save_alert_state()
+        if symbol not in self.radar_candidates:
+            self.radar_candidates.append(symbol)
+
         logger.info(
             f"EARLY_RADAR triggered for {symbol}",
             extra={"reason_code": "EARLY_RADAR_FOUND", "symbol": symbol, "sector": sector},
         )
-        if symbol not in self.radar_candidates:
-            self.radar_candidates.append(symbol)
-
+        
         await self.event_bus.publish("on_early_radar_found", {
             "symbol": symbol,
             "sector": sector,
@@ -307,6 +343,7 @@ class SignalScanner:
                 return True # Technically triggered, but we don't alert
 
         self.last_alert_targets[symbol] = target_price
+        self._save_alert_state()
 
         logger.info(
             f"ENTRY_TRIGGER for {symbol} @ {close:.2f} | SL={sl_price:.2f} | TP={target_price:.2f}",
@@ -388,6 +425,7 @@ class SignalScanner:
                 return
 
         self.last_alert_targets[symbol] = target_price
+        self._save_alert_state()
 
         logger.info(
             f"RETEST_REENTRY confirmed for {symbol} @ {close:.2f}",

@@ -15,7 +15,7 @@ function Watchlist() {
 
   const fetchWatchlist = async () => {
     try {
-      const response = await fetch('/api/watchlist', {
+      const response = await fetch('/api/watchlist/', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -38,7 +38,7 @@ function Watchlist() {
     };
 
     try {
-      const response = await fetch('/api/watchlist', {
+      const response = await fetch('/api/watchlist/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

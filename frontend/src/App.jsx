@@ -9,6 +9,7 @@ import AlertsHistory from './pages/AlertsHistory';
 import Trades from './pages/Trades';
 import Logs from './pages/Logs';
 import Layout from './components/Layout';
+import StandaloneChart from './pages/StandaloneChart';
 
 const ProtectedRoute = () => {
   const { isAuthenticated } = useAuth();
@@ -46,6 +47,7 @@ function App() {
             <Route path="/trades" element={<Trades />} />
             <Route path="/logs" element={<Logs />} />
             <Route path="/admin" element={<AdminPanel />} />
+            <Route path="/chart/:symbol" element={<StandaloneChart />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

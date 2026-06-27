@@ -7,8 +7,11 @@ from backend.database.models import User, SystemAlert
 
 router = APIRouter()
 
+from sqlalchemy.future import select
+from sqlalchemy import func
+
 @router.get("/")
-def get_alerts(
+async def get_alerts(
     date: Optional[str] = None,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
@@ -16,23 +19,25 @@ def get_alerts(
     current_user: User = Depends(get_current_user)
 ):
     """Fetch system alerts with pagination and optional date filter."""
-    query = db.query(SystemAlert)
+    stmt = select(SystemAlert)
     
     if date:
         try:
             target_date = datetime.strptime(date, "%Y-%m-%d").date()
-            # PostgreSQL datetime filtering for the specific day
-            query = query.filter(SystemAlert.timestamp >= datetime.combine(target_date, time.min))
-            query = query.filter(SystemAlert.timestamp <= datetime.combine(target_date, time.max))
+            stmt = stmt.filter(SystemAlert.timestamp >= datetime.combine(target_date, time.min))
+            stmt = stmt.filter(SystemAlert.timestamp <= datetime.combine(target_date, time.max))
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
 
     # Count total for pagination
-    total = query.count()
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await db.execute(count_stmt)).scalar()
 
     # Pagination
     offset = (page - 1) * limit
-    alerts = query.order_by(SystemAlert.timestamp.desc()).offset(offset).limit(limit).all()
+    stmt = stmt.order_by(SystemAlert.timestamp.desc()).offset(offset).limit(limit)
+    result = await db.execute(stmt)
+    alerts = result.scalars().all()
 
     return {
         "data": [

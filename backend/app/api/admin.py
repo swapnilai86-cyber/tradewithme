@@ -18,6 +18,11 @@ router = APIRouter()
 class ExpiryUpdate(BaseModel):
     expiry_date: datetime
 
+class CMPFilterUpdate(BaseModel):
+    mode: str
+    min_val: float
+    max_val: float
+
 @router.get("/status")
 async def get_status(current_user = Depends(get_trader_user)):
     if not main_app.trading_engine:
@@ -74,7 +79,13 @@ async def create_user_admin(user: UserCreate, current_user = Depends(get_admin_u
 
 @router.post("/sync-offline-data")
 async def trigger_offline_sync(current_user = Depends(get_admin_user)):
-    asyncio.create_task(sync_offline_data_from_yfinance())
+    async def run_sync_and_scan():
+        await sync_offline_data_from_yfinance()
+        if main_app.trading_engine and main_app.trading_engine.polling_scanner:
+            main_app.trading_engine.polling_scanner.offline_mode = True
+            main_app.trading_engine.polling_scanner._offline_scan_done = False
+            
+    asyncio.create_task(run_sync_and_scan())
     return {"status": "success", "message": "Offline data sync started in the background. Check Live Logs for progress."}
 
 @router.post("/toggle-offline")
@@ -85,16 +96,30 @@ async def toggle_offline_mode(current_user = Depends(get_admin_user)):
     current_state = main_app.trading_engine.polling_scanner.offline_mode
     main_app.trading_engine.polling_scanner.offline_mode = not current_state
     
+    if not current_state: # Means it was toggled ON
+        main_app.trading_engine.polling_scanner._offline_scan_done = False
+    
     state_str = "ENABLED" if not current_state else "DISABLED"
     return {"status": "success", "message": f"Offline Mode {state_str}. Scanner will adapt on the next 2-minute cycle."}
 
-@router.post("/toggle-scanner")
-async def toggle_scanner_state(current_user = Depends(get_admin_user)):
-    if not main_app.trading_engine:
+@router.get("/cmp-filter")
+async def get_cmp_filter(current_user = Depends(get_admin_user)):
+    if not main_app.trading_engine or not main_app.trading_engine.polling_scanner:
+        return {"mode": "none", "min_val": 0.0, "max_val": 0.0}
+    
+    scanner = main_app.trading_engine.polling_scanner
+    return {
+        "mode": scanner.cmp_filter_mode,
+        "min_val": scanner.cmp_filter_min,
+        "max_val": scanner.cmp_filter_max
+    }
+
+@router.post("/cmp-filter")
+async def set_cmp_filter(filter_update: CMPFilterUpdate, current_user = Depends(get_admin_user)):
+    if not main_app.trading_engine or not main_app.trading_engine.polling_scanner:
         raise HTTPException(status_code=503, detail="Engine not ready")
     
-    current_state = main_app.trading_engine.polling_scanner.scan_enabled
-    main_app.trading_engine.polling_scanner.scan_enabled = not current_state
+    scanner = main_app.trading_engine.polling_scanner
+    scanner.save_cmp_filter(filter_update.mode, filter_update.min_val, filter_update.max_val)
     
-    state_str = "RESUMED" if not current_state else "PAUSED"
-    return {"status": "success", "message": f"Scanner loop {state_str}."}
+    return {"status": "success", "message": "Scanner CMP filter updated successfully."}
