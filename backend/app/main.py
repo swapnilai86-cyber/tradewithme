@@ -8,6 +8,8 @@ from backend.app.api import auth, watchlist, trades, dashboard, admin, logs, ale
 from backend.engine.core import TradingEngineCore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from backend.engine.data_ingestion.yfinance_sync import sync_offline_data_from_yfinance
+from backend.database.database import engine, Base
+from backend.database import models # Important: import models so they register with Base
 
 # Global engine and scheduler instances
 trading_engine = None
@@ -25,6 +27,11 @@ async def lifespan(app: FastAPI):
         config = {}
 
     trading_engine = TradingEngineCore(config)
+    
+    # Auto-initialize database tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+        print("Database tables initialized successfully.")
     
     # Start the engine in the background
     asyncio.create_task(trading_engine.start())
