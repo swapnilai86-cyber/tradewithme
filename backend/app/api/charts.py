@@ -19,7 +19,7 @@ async def get_chart_data(symbol: str, tf: str = "15minute", current_user = Depen
         
     file_path = f"/app/data/historical/{symbol}_{tf_suffix}.csv"
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"Historical data not found for symbol on timeframe {tf}")
+        raise HTTPException(status_code=404, detail=f"Historical data not found for {symbol} on timeframe {tf}")
     
     try:
         df = pd.read_csv(file_path)
