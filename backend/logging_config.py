@@ -55,7 +55,11 @@ def get_logger(name: str):
         formatter = JSONFormatter()
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
+        
+        import os
+        log_level_str = os.getenv("LOG_LEVEL", "INFO").upper()
+        level = getattr(logging, log_level_str, logging.INFO)
+        logger.setLevel(level)
 
     # Add the live-buffer handler once to the root logger
     root = logging.getLogger()
