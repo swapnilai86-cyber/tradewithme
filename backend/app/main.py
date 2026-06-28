@@ -8,8 +8,10 @@ from backend.app.api import auth, watchlist, trades, dashboard, admin, logs, ale
 from backend.engine.core import TradingEngineCore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from backend.engine.data_ingestion.yfinance_sync import sync_offline_data_from_yfinance
-from backend.database.database import engine, Base
-from backend.database import models # Important: import models so they register with Base
+from backend.database.database import engine, AsyncSessionLocal
+from backend.database.models import Base
+from backend.database import crud
+from backend.app.security import get_password_hash
 
 # Global engine and scheduler instances
 trading_engine = None
@@ -32,6 +34,14 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         print("Database tables initialized successfully.")
+        
+    # Create default admin user if missing
+    async with AsyncSessionLocal() as session:
+        admin_user = await crud.get_user_by_username(session, "admin")
+        if not admin_user:
+            hashed_pwd = get_password_hash("admin123")
+            await crud.create_user(session, "admin@trade.local", "admin", hashed_pwd, role="admin")
+            print("Default admin user created (admin / admin123).")
     
     # Start the engine in the background
     asyncio.create_task(trading_engine.start())
