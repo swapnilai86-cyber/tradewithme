@@ -20,6 +20,7 @@ from backend.engine.brokers.mstock.instruments import NiftyInstruments
 from backend.engine.data_ingestion.polling_scanner import PollingScanner
 from backend.alerts.discord_service import DiscordService
 from backend.reporting.daily_report import DailyReporter
+from backend.engine.execution.db_recorder import DBTradeRecorder
 
 logger = get_logger(__name__)
 
@@ -97,6 +98,9 @@ class TradingEngineCore:
 
         # Discord alerts
         self.discord_service = DiscordService(self.event_bus, config)
+
+        # Database trade recorder
+        self.db_recorder = DBTradeRecorder(self.event_bus)
 
         # Daily reporter
         self.daily_reporter = DailyReporter(
