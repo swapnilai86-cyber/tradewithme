@@ -186,7 +186,7 @@ class PollingScanner:
                     df = await self._fetch_candles(token, "day", lookback_days=300)
                     if df is not None and len(df) > 0:
                         new_cache[sym] = df
-                    await asyncio.sleep(0.1)  # 100ms throttle between symbols
+                    await asyncio.sleep(0.2)  # 200ms throttle between symbols
                 except Exception as e:
                     logger.debug(f"Daily cache fetch failed for {sym}: {e}")
 
@@ -293,17 +293,27 @@ class PollingScanner:
             to_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
             loop = asyncio.get_running_loop()
-            resp = await loop.run_in_executor(
-                None,
-                self.mconnect.get_historical_chart,
-                "NSE",
-                token,
-                interval,
-                from_date,
-                to_date,
-            )
-
-            if not hasattr(resp, "json"):
+            
+            # Retry up to 3 times on timeout/failure
+            resp = None
+            for attempt in range(3):
+                try:
+                    resp = await loop.run_in_executor(
+                        None,
+                        self.mconnect.get_historical_chart,
+                        "NSE",
+                        token,
+                        interval,
+                        from_date,
+                        to_date,
+                    )
+                    break # Success
+                except Exception as e:
+                    if attempt == 2:
+                        raise e
+                    await asyncio.sleep(0.5 * (attempt + 1))
+            
+            if not resp or not hasattr(resp, "json"):
                 return None
 
             data = resp.json()
