@@ -6,6 +6,7 @@ function AlertsHistory() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total_pages: 1 });
+  const [summary, setSummary] = useState({ total_invested: 0, current_value: 0 });
   const [selectedAlert, setSelectedAlert] = useState(null);
   const { token } = useAuth();
 
@@ -23,6 +24,9 @@ function AlertsHistory() {
         const data = await response.json();
         setAlerts(data.data);
         setPagination(data.pagination);
+        if (data.summary) {
+          setSummary(data.summary);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch alerts:", err);
@@ -59,6 +63,36 @@ function AlertsHistory() {
         </div>
       </div>
       
+      <div style={{ 
+        display: 'flex', 
+        gap: '2rem', 
+        marginTop: '1.5rem', 
+        padding: '1rem', 
+        backgroundColor: 'rgba(255, 255, 255, 0.05)', 
+        borderRadius: '8px',
+        borderLeft: '4px solid #3b82f6'
+      }}>
+        <div>
+          <div style={{ color: '#888', fontSize: '0.85rem', textTransform: 'uppercase' }}>Total Amount Invested</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>₹{summary.total_invested?.toFixed(2) || '0.00'}</div>
+        </div>
+        <div>
+          <div style={{ color: '#888', fontSize: '0.85rem', textTransform: 'uppercase' }}>Current Value</div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>₹{summary.current_value?.toFixed(2) || '0.00'}</div>
+        </div>
+        <div>
+          <div style={{ color: '#888', fontSize: '0.85rem', textTransform: 'uppercase' }}>Gross PnL</div>
+          <div style={{ 
+            fontSize: '1.25rem', 
+            fontWeight: 'bold', 
+            color: (summary.current_value - summary.total_invested) >= 0 ? '#00C851' : '#FF4444' 
+          }}>
+            {(summary.current_value - summary.total_invested) > 0 ? '+' : ''}
+            ₹{(summary.current_value - summary.total_invested)?.toFixed(2) || '0.00'}
+          </div>
+        </div>
+      </div>
+      
       <div className="glass-panel" style={{ marginTop: '1rem' }}>
         <table className="data-table">
           <thead>
@@ -69,14 +103,12 @@ function AlertsHistory() {
               <th>Price</th>
               <th>CMP</th>
               <th>Gross PnL</th>
-              <th>Cum. PnL</th>
               <th>Message</th>
             </tr>
           </thead>
           <tbody>
             {alerts.map(alert => {
               const pnlColor = alert.gross_pnl >= 0 ? '#00C851' : '#FF4444';
-              const cumPnlColor = alert.cumulative_pnl >= 0 ? '#00C851' : '#FF4444';
               return (
               <tr key={alert.id}>
                 <td>
@@ -113,16 +145,13 @@ function AlertsHistory() {
                 <td style={{ color: pnlColor, fontWeight: 'bold' }}>
                   {alert.gross_pnl ? `${alert.gross_pnl > 0 ? '+' : ''}₹${alert.gross_pnl.toFixed(2)}` : '—'}
                 </td>
-                <td style={{ color: cumPnlColor, fontWeight: 'bold' }}>
-                  {alert.cumulative_pnl ? `${alert.cumulative_pnl > 0 ? '+' : ''}₹${alert.cumulative_pnl.toFixed(2)}` : '—'}
-                </td>
                 <td>{alert.message}</td>
               </tr>
               );
             })}
             {alerts.length === 0 && (
               <tr>
-                <td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>
+                <td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>
                   No alerts found for this date.
                 </td>
               </tr>
