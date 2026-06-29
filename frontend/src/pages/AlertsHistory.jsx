@@ -166,7 +166,7 @@ function AlertsHistory() {
             </div>
             
             <p style={{ color: '#ccc', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
-              **{selectedAlert.data?.sector || 'Unknown'}** | {selectedAlert.message}
+              {selectedAlert.message.replace(/\*\*/g, '')}
             </p>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
