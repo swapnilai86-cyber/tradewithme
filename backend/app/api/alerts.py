@@ -9,6 +9,19 @@ router = APIRouter()
 
 from sqlalchemy.future import select
 from sqlalchemy import func
+import os
+import pandas as pd
+
+def _get_cmp_from_cache(symbol: str) -> Optional[float]:
+    filepath = f"/app/data/historical/{symbol}_15minute.csv"
+    if os.path.exists(filepath):
+        try:
+            df = pd.read_csv(filepath)
+            if not df.empty:
+                return float(df['close'].iloc[-1])
+        except Exception:
+            pass
+    return None
 
 @router.get("/")
 async def get_alerts(
@@ -39,19 +52,48 @@ async def get_alerts(
     result = await db.execute(stmt)
     alerts = result.scalars().all()
 
+    # Calculate CMP, PnL
+    enriched_data = []
+    cumulative_pnl = 0.0
+
+    # Reverse to calculate cumulative correctly from oldest to newest if needed,
+    # but alerts are sorted desc (newest first). To make cumulative PnL make sense,
+    # we accumulate from bottom to top, so we reverse it.
+    alerts_asc = list(reversed(alerts))
+    for a in alerts_asc:
+        cmp_val = _get_cmp_from_cache(a.symbol)
+        gross_pnl = None
+        
+        # We only calculate PnL if it's an actionable signal or trade with a price
+        if cmp_val and a.price and a.price > 0:
+            # Try to get qty from data, default to 1 for percentage-like representation if missing
+            qty = a.data.get("qty") if isinstance(a.data, dict) and "qty" in a.data else 1
+            gross_pnl = (cmp_val - a.price) * qty
+            
+            # If it's an exit alert, just use its realized PnL if available
+            if isinstance(a.data, dict) and "pnl" in a.data and a.alert_type not in ["EARLY_RADAR", "ENTRY_TRIGGER", "TRADE_EXECUTED"]:
+                gross_pnl = a.data["pnl"]
+                
+            cumulative_pnl += gross_pnl
+
+        enriched_data.append({
+            "id": a.id,
+            "symbol": a.symbol,
+            "alert_type": a.alert_type,
+            "price": a.price,
+            "cmp": cmp_val,
+            "gross_pnl": gross_pnl,
+            "cumulative_pnl": cumulative_pnl if gross_pnl is not None else None,
+            "message": a.message,
+            "data": a.data,
+            "timestamp": a.timestamp.isoformat() if a.timestamp else None
+        })
+        
+    # Re-reverse to match original desc sorting
+    enriched_data.reverse()
+
     return {
-        "data": [
-            {
-                "id": a.id,
-                "symbol": a.symbol,
-                "alert_type": a.alert_type,
-                "price": a.price,
-                "message": a.message,
-                "data": a.data,
-                "timestamp": a.timestamp.isoformat() if a.timestamp else None
-            }
-            for a in alerts
-        ],
+        "data": enriched_data,
         "pagination": {
             "total": total,
             "page": page,

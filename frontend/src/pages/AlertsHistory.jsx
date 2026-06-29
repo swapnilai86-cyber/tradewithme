@@ -67,11 +67,17 @@ function AlertsHistory() {
               <th>Symbol</th>
               <th>Type</th>
               <th>Price</th>
+              <th>CMP</th>
+              <th>Gross PnL</th>
+              <th>Cum. PnL</th>
               <th>Message</th>
             </tr>
           </thead>
           <tbody>
-            {alerts.map(alert => (
+            {alerts.map(alert => {
+              const pnlColor = alert.gross_pnl >= 0 ? '#00C851' : '#FF4444';
+              const cumPnlColor = alert.cumulative_pnl >= 0 ? '#00C851' : '#FF4444';
+              return (
               <tr key={alert.id}>
                 <td>
                   <span 
@@ -102,13 +108,21 @@ function AlertsHistory() {
                     {alert.alert_type}
                   </span>
                 </td>
-                <td>₹{alert.price?.toFixed(2)}</td>
+                <td>₹{alert.price?.toFixed(2) || '—'}</td>
+                <td>{alert.cmp ? `₹${alert.cmp.toFixed(2)}` : '—'}</td>
+                <td style={{ color: pnlColor, fontWeight: 'bold' }}>
+                  {alert.gross_pnl ? `${alert.gross_pnl > 0 ? '+' : ''}₹${alert.gross_pnl.toFixed(2)}` : '—'}
+                </td>
+                <td style={{ color: cumPnlColor, fontWeight: 'bold' }}>
+                  {alert.cumulative_pnl ? `${alert.cumulative_pnl > 0 ? '+' : ''}₹${alert.cumulative_pnl.toFixed(2)}` : '—'}
+                </td>
                 <td>{alert.message}</td>
               </tr>
-            ))}
+              );
+            })}
             {alerts.length === 0 && (
               <tr>
-                <td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>
+                <td colSpan="8" style={{ textAlign: 'center', padding: '2rem' }}>
                   No alerts found for this date.
                 </td>
               </tr>
